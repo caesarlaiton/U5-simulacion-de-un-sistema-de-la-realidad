@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulador de propagación de incendios forestales: autómata celular estocástico</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-emerald-600 selection:text-white">
+
+  <!-- Header principal -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h1 class="text-xl font-bold tracking-tight text-slate-100">
+          César Laiton V-27.678.619 & Leofran Aguilera V-31.131.068
+        </h1>
+        <h2 class="text-lg font-bold tracking-tight text-slate-100">
+          Simulación de incendios forestales: autómata celular estocástico
+        </h2>
+        <p class="text-xs text-slate-400">
+          Modelo matemático basado en la teoría de la percolación con extinción interactiva en tiempo real
+        </p>
+      </div>
+
+      <!-- Controles de ejecución y audio -->
+      <div class="flex items-center gap-2">
+        <button id="btnStartPause" type="button"
+          class="px-4 py-2 rounded text-xs font-semibold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white transition">
+          Iniciar
+        </button>
+        <button id="btnStep" type="button"
+          class="px-3 py-2 rounded text-xs font-semibold uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          Paso
+        </button>
+        <button id="btnReset" type="button"
+          class="px-3 py-2 rounded text-xs font-semibold uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          Reiniciar
+        </button>
+        <button id="btnMute" type="button"
+          class="px-3 py-2 rounded text-xs font-semibold uppercase tracking-wider bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition">
+          Sonido: activo
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenido principal -->
+  <main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- Panel izquierdo: parámetros del modelo y estadísticas -->
+    <section class="lg:col-span-4 space-y-5">
+
+      <!-- Tarjeta de puntuación y estado -->
+      <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Estado de la partida</span>
+          <span id="statusBadge" class="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300">LISTO</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded p-3">
+            <div class="text-xs text-slate-400">Puntuación</div>
+            <div id="scoreValue" class="text-2xl font-bold font-mono text-emerald-400">0</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded p-3">
+            <div class="text-xs text-slate-400">Árboles extinguidos</div>
+            <div id="extinguishedValue" class="text-2xl font-bold font-mono text-sky-400">0</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded p-3">
+            <div class="text-xs text-slate-400">Paso temporal (t)</div>
+            <div id="tickValue" class="text-lg font-bold font-mono text-slate-200">0</div>
+          </div>
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded p-3">
+            <div class="text-xs text-slate-400">Bosque conservado</div>
+            <div id="savedPercentValue" class="text-lg font-bold font-mono text-emerald-300">100.0%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parámetros matemáticos del sistema -->
+      <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-4">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">
+          Variables del modelo estocástico
+        </h2>
+
+        <!-- Densidad de vegetación -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <label for="inputDensity" class="text-slate-300 font-medium">Densidad inicial de árboles (D)</label>
+            <span id="labelDensity" class="font-mono text-emerald-400">0.85</span>
+          </div>
+          <input id="inputDensity" type="range" min="0.20" max="0.98" step="0.01" value="0.85" autocomplete="off" class="custom-slider w-full">
+          <p class="text-[11px] text-slate-500">Probabilidad inicial de que una celda contenga vegetación viva</p>
+        </div>
+
+        <!-- Probabilidad de propagación -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <label for="inputProb" class="text-slate-300 font-medium">Probabilidad de ignición (P_prop)</label>
+            <span id="labelProb" class="font-mono text-amber-400">0.80</span>
+          </div>
+          <input id="inputProb" type="range" min="0.10" max="1.00" step="0.01" value="0.80" autocomplete="off" class="custom-slider w-full">
+          <p class="text-[11px] text-slate-500">Probabilidad estocástica de transmisión a un vecino ortogonal por paso</p>
+        </div>
+
+        <!-- Velocidad de propagación -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <label for="inputSpeed" class="text-slate-300 font-medium">Intervalo de actualización (ms)</label>
+            <span id="labelSpeed" class="font-mono text-slate-300">160 ms</span>
+          </div>
+          <input id="inputSpeed" type="range" min="120" max="800" step="10" value="160" autocomplete="off" class="custom-slider w-full">
+          <p class="text-[11px] text-slate-500">Duración de cada paso discreto de tiempo del autómata celular</p>
+        </div>
+
+        <!-- Radio de la manguera -->
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs">
+            <label for="inputRadius" class="text-slate-300 font-medium">Radio de acción del agua (celdas)</label>
+            <span id="labelRadius" class="font-mono text-sky-400">3</span>
+          </div>
+          <input id="inputRadius" type="range" min="1" max="6" step="1" value="3" autocomplete="off" class="custom-slider w-full">
+          <p class="text-[11px] text-slate-500">Radio de enfriamiento al mantener presionado el clic sobre el fuego</p>
+        </div>
+
+        <!-- Indicador de percolación -->
+        <div class="bg-slate-950 border border-slate-800 rounded p-3 space-y-2">
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-slate-400">Densidad efectiva (P_ef = D * P_prop):</span>
+            <span id="effectiveDensityValue" class="font-mono font-bold text-amber-400">0.595</span>
+          </div>
+          <div class="w-full bg-slate-800 h-2 rounded overflow-hidden relative">
+            <div id="percolationBar" class="bg-amber-500 h-full transition-all duration-200" style="width: 59.5%"></div>
+            <div class="absolute top-0 bottom-0 w-0.5 bg-red-400" style="left: 59%" title="Umbral Critico Teorico (0.59)"></div>
+          </div>
+          <div id="percolationRegimeText" class="text-[11px] text-slate-400 font-mono">
+            Regimen crítico (umbral teórico 2D: 0.590)
+          </div>
+        </div>
+      </div>
+
+      <!-- Conteo de celdas por estado -->
+      <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">
+          Distribución de estados en la cuadrícula
+        </h2>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="flex items-center justify-between bg-slate-950 px-3 py-2 rounded border border-slate-800">
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-sm inline-block bg-emerald-600"></span>
+              Árbol vivo
+            </span>
+            <span id="countTree" class="font-mono font-semibold">0</span>
+          </div>
+          <div class="flex items-center justify-between bg-slate-950 px-3 py-2 rounded border border-slate-800">
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-sm inline-block bg-red-500"></span>
+              En llamas
+            </span>
+            <span id="countFire" class="font-mono font-semibold">0</span>
+          </div>
+          <div class="flex items-center justify-between bg-slate-950 px-3 py-2 rounded border border-slate-800">
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-sm inline-block bg-sky-500"></span>
+              Extinguido
+            </span>
+            <span id="countExtinguished" class="font-mono font-semibold">0</span>
+          </div>
+          <div class="flex items-center justify-between bg-slate-950 px-3 py-2 rounded border border-slate-800">
+            <span class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-sm inline-block bg-neutral-800 border border-slate-700"></span>
+              Ceniza/vacío
+            </span>
+            <span id="countAsh" class="font-mono font-semibold">0</span>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Panel derecho: lienzo de simulación y gráfica temporal -->
+    <section class="lg:col-span-8 space-y-5">
+
+      <!-- Contenedor del canvas principal -->
+      <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 flex flex-col items-center">
+        <div class="w-full flex flex-wrap justify-between items-center mb-3 gap-2">
+          <span class="text-xs text-slate-400">
+            Instrucción: mantenga presionado el clic izquierdo sobre las celdas rojas para aplicar agua y apagar el incendio
+          </span>
+          <span class="text-xs font-mono text-slate-400">Cuadrícula: 70 x 70 celdas</span>
+        </div>
+
+        <div class="relative w-full max-w-[560px] aspect-square bg-slate-950 border border-slate-800 rounded overflow-hidden">
+          <canvas id="forestCanvas" width="560" height="560" class="w-full h-full block canvas-crosshair"></canvas>
+
+          <!-- Superposición de fin de partida -->
+          <div id="gameOverOverlay" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+            <h3 id="overlayTitle" class="text-xl font-bold text-slate-100 mb-2">Incendio contenido</h3>
+            <p id="overlaySubtitle" class="text-sm text-slate-300 max-w-md mb-4"></p>
+            <div class="grid grid-cols-3 gap-3 w-full max-w-md mb-5">
+              <div class="bg-slate-900 border border-slate-800 p-3 rounded">
+                <div class="text-[11px] text-slate-400">Puntuación final</div>
+                <div id="overlayScore" class="text-lg font-bold font-mono text-emerald-400">0</div>
+              </div>
+              <div class="bg-slate-900 border border-slate-800 p-3 rounded">
+                <div class="text-[11px] text-slate-400">Bosque salvado</div>
+                <div id="overlaySaved" class="text-lg font-bold font-mono text-sky-400">0%</div>
+              </div>
+              <div class="bg-slate-900 border border-slate-800 p-3 rounded">
+                <div class="text-[11px] text-slate-400">Duración</div>
+                <div id="overlayTicks" class="text-lg font-bold font-mono text-slate-200">0 pasos</div>
+              </div>
+            </div>
+            <button id="btnOverlayRestart" type="button"
+              class="px-5 py-2.5 rounded text-xs font-semibold uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white transition">
+              Nueva simulación
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráfica de evolución temporal -->
+      <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-2">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Curva temporal de estados del sistema
+          </h2>
+          <span class="text-[11px] text-slate-500 font-mono">Verde: vivos | Rojo: fuego | Azul: extinguidos</span>
+        </div>
+        <canvas id="chartCanvas" width="720" height="140" class="w-full h-36 bg-slate-950 border border-slate-800 rounded block"></canvas>
+      </div>
+
+      <!-- Registro experimental para el informe técnico -->
+      <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3">
+        <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-2">
+          <div>
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Bitácora experimental de simulaciones
+            </h2>
+            <p class="text-[11px] text-slate-500">
+              Datos registrados automáticamente al finalizar cada partida para su análisis en el informe técnico
+            </p>
+          </div>
+          <div class="flex gap-2">
+            <button id="btnExportCSV" type="button"
+              class="px-3 py-1.5 rounded text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+              Exportar CSV
+            </button>
+            <button id="btnClearLog" type="button"
+              class="px-3 py-1.5 rounded text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 transition">
+              Limpiar tabla
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs font-mono">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400">
+                <th class="py-2 px-2">#</th>
+                <th class="py-2 px-2">D</th>
+                <th class="py-2 px-2">P_prop</th>
+                <th class="py-2 px-2">P_ef</th>
+                <th class="py-2 px-2">Pasos</th>
+                <th class="py-2 px-2">Extinguidos</th>
+                <th class="py-2 px-2">Conservado (%)</th>
+                <th class="py-2 px-2">Puntos</th>
+              </tr>
+            </thead>
+            <tbody id="experimentLogBody" class="divide-y divide-slate-800/60 text-slate-300">
+              <tr id="emptyLogRow">
+                <td colspan="8" class="py-4 text-center text-slate-500 font-sans">
+                  Aún no hay resultados registrados. Complete una simulación para almacenar los datos
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Carga modular de scripts -->
+  <script src="audio.js"></script>
+  <script src="simulation.js"></script>
+  <script src="renderer.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
